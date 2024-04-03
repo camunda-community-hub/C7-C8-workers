@@ -1,0 +1,32 @@
+
+c7c8worker:
+  # by default, application detects all workers and start them.
+  # but it's possible to filter the list to start only specific worker
+  # list of worker type separate by a ;
+  # Example get-payment;office-to-pdf:jpeg-to-pdf
+  workers: delay-worker
+
+  # connection to the server.
+  # One server is expected, but multiple are possible. Workers will be start for each server of the list
+  serversList:
+    - type: "camunda7"
+      name: "camunda7Emeraud"
+      url: "http://localhost:8080/engine-rest"
+      workerMaxJobsActive: 20
+
+    - type: "camunda8"
+      name: "Camunda8Ruby"
+      zeebeGatewayAddress: "127.0.0.1:26500"
+      workerExecutionThreads: 10
+      workerMaxJobsActive: 10
+
+    # - type: "camunda8saas"
+    #   name: "Camunda8Grena"
+    #   region: "bru-2"
+    #   clusterId: "4b..e2"
+    #   clientId: "bs..6a"
+    #   secret: "-E..ZG"
+    #   oAuthUrl: "https://login.cloud.camunda.io/oauth/token"
+    #   audience: "zeebe.camunda.io"
+    #   workerExecutionThreads: 10
+    #   workerMaxJobsActive: 10
