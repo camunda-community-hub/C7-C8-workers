@@ -102,9 +102,8 @@ public class BpmnEngineList {
    *
    * @param serverName serverName
    * @return the server, or null
-   * @throws EngineException on any error
    */
-  public BpmnServerDefinition getByServerName(String serverName) throws EngineException {
+  public BpmnServerDefinition getByServerName(String serverName) {
     Optional<BpmnServerDefinition> first = allServers.stream().filter(t -> t.name.equals(serverName)).findFirst();
     return first.isPresent() ? first.get() : null;
   }
@@ -114,9 +113,8 @@ public class BpmnEngineList {
    *
    * @param serverType type of server CAMUNDA 8 ? 7 ?
    * @return a server
-   * @throws EngineException on any error
    */
-  public BpmnServerDefinition getByServerType(CamundaEngine serverType) throws EngineException {
+  public BpmnServerDefinition getByServerType(CamundaEngine serverType) {
     Optional<BpmnServerDefinition> first = allServers.stream()
         .filter(t -> sameType(t.serverType, serverType))
         .findFirst();
@@ -162,8 +160,8 @@ public class BpmnEngineList {
    * getFromServerList
    * in configuration, give a list of server.
    *
-   * @return list of engine
-   * @throws EngineException
+   * @return list of engines
+   * @throws EngineException in any error
    */
   private List<BpmnServerDefinition> getFromServersList() throws EngineException {
     List<BpmnServerDefinition> serverList = new ArrayList<>();
@@ -228,8 +226,12 @@ public class BpmnEngineList {
     bpmnServerDefinition.name = (st.hasMoreTokens() ? st.nextToken() : null);
     try {
       bpmnServerDefinition.serverType = st.hasMoreTokens() ? CamundaEngine.valueOf(st.nextToken()) : null;
+
       if (CamundaEngine.CAMUNDA_7.equals(bpmnServerDefinition.serverType)) {
         bpmnServerDefinition.camunda7ServerUrl = (st.hasMoreTokens() ? st.nextToken() : null);
+        bpmnServerDefinition.workerMaxJobsActive = (st.hasMoreTokens() ?
+            parseInt(CONF_WORKER_MAX_JOBS_ACTIVE, st.nextToken(), DEFAULT_VALUE_MAX_JOBS_ACTIVE, contextLog) :
+            null);
 
       } else if (CamundaEngine.CAMUNDA_8.equals(bpmnServerDefinition.serverType)) {
         bpmnServerDefinition.zeebeGatewayAddress = (st.hasMoreTokens() ? st.nextToken() : null);
