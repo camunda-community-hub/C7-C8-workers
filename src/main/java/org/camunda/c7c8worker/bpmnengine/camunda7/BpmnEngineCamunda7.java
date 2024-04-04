@@ -1,11 +1,10 @@
 package org.camunda.c7c8worker.bpmnengine.camunda7;
 
 import org.camunda.bpm.client.ExternalTaskClient;
-import org.camunda.bpm.client.backoff.ExponentialBackoffStrategy;
 import org.camunda.bpm.client.task.ExternalTaskHandler;
+import org.camunda.c7c8worker.baseworker.BaseWorker;
 import org.camunda.c7c8worker.bpmnengine.BpmnEngine;
 import org.camunda.c7c8worker.bpmnengine.EngineException;
-import org.camunda.c7c8worker.bpmnengine.FixedBackoffSupplier;
 import org.camunda.c7c8worker.bpmnengine.JobInformation;
 import org.camunda.c7c8worker.configuration.BpmnEngineList;
 import org.slf4j.Logger;
@@ -26,7 +25,6 @@ public class BpmnEngineCamunda7 implements BpmnEngine {
   private final String serverUrl;
   private final int workerMaxJobsActive;
   private final boolean logDebug;
-  private int count = 0;
 
   /**
    * @param serverDefinition definition to connect to the server
@@ -53,12 +51,12 @@ public class BpmnEngineCamunda7 implements BpmnEngine {
 
   @Override
   public void init() {
-
+// Nothing to do for C7
   }
 
   @Override
   public void connection() throws EngineException {
-    count++;
+    // No connection is necessary
   }
 
   @Override
@@ -84,14 +82,11 @@ public class BpmnEngineCamunda7 implements BpmnEngine {
   /* ******************************************************************** */
   @Override
   public RegisteredTask registerServiceTask(String workerId,
-                                            String topic,
-                                            Duration lockTime,
-                                            Object jobHandler,
-                                            FixedBackoffSupplier backoffSupplier) {
+                                            BaseWorker baseWorker) {
 
-    if (!(jobHandler instanceof ExternalTaskHandler)) {
+    if (!(baseWorker instanceof ExternalTaskHandler)) {
       logger.error("handler is not a externalTaskHandler implementation, can't register the worker [{}], topic [{}]",
-          workerId, topic);
+          workerId, baseWorker.getType());
       return null;
     }
     RegisteredTask registeredTask = new RegisteredTask();
@@ -100,14 +95,14 @@ public class BpmnEngineCamunda7 implements BpmnEngine {
         .baseUrl(serverUrl)
         .workerId(workerId)
         .maxTasks(Math.max(workerMaxJobsActive,1))
-        .lockDuration(lockTime.toMillis())
-        .asyncResponseTimeout(20000)
-        .backoffStrategy(new ExponentialBackoffStrategy())
+        .lockDuration(baseWorker.getLockTime().toMillis())
+        .asyncResponseTimeout(baseWorker.getAsyncResponseTime())
+        .backoffStrategy(baseWorker.getBackoffStrategy())
         .build();
 
-    registeredTask.topicSubscription = client.subscribe(topic)
-        .lockDuration(10000)
-        .handler((ExternalTaskHandler) jobHandler)
+    registeredTask.topicSubscription = client.subscribe(baseWorker.getType())
+        .lockDuration(baseWorker.getLockTime().toMillis())
+        .handler(baseWorker)
         .open();
     return registeredTask;
 
@@ -131,8 +126,13 @@ public class BpmnEngineCamunda7 implements BpmnEngine {
   }
 
   @Override
-  public void fail(JobInformation jobInformation, int nbRetry, Map<String, Object> variables) throws EngineException {
-
+  public void fail(JobInformation jobInformation,
+                   int nbRetries,
+                   String errorMessage,
+                   String errorDetails,
+                   Duration retryTimeout,
+                   Map<String, Object> variables) throws EngineException {
+    jobInformation.externalTaskService.handleFailure(jobInformation.externalTask, errorMessage, errorDetails, nbRetries, retryTimeout.toMillis());
   }
 
   @Override
@@ -164,25 +164,6 @@ public class BpmnEngineCamunda7 implements BpmnEngine {
   @Override
   public int getWorkerExecutionThreads() {
     return workerMaxJobsActive;
-  }
-
-  public void turnHighFlowMode(boolean hightFlowMode) {
-  }
-
-  private String getUniqWorkerId() {
-    return Thread.currentThread().getName() + "-" + System.currentTimeMillis();
-  }
-
-
-
-  private String dateToString(Date date) {
-    return String.valueOf(date.getTime());
-  }
-
-  private Date stringToDate(String dateSt) {
-    if (dateSt == null)
-      return null;
-    return new Date(Long.valueOf(dateSt));
   }
 
 

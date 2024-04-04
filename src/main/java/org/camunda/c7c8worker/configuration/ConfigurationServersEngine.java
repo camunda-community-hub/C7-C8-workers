@@ -14,7 +14,7 @@ public class ConfigurationServersEngine {
   // @ V alue("${automator.logDebug:false}")
   public boolean logDebug = false;
 
-  @Value("#{'${automator.serversConnection}'.split(';')}")
+  @Value("#{'${c7c8worker.serversConnection}'.split(';')}")
   public List<String> serversConnection;
 
   public List<Map<String, Object>> serversList;

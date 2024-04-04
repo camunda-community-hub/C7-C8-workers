@@ -7,9 +7,10 @@ import io.camunda.zeebe.client.api.worker.JobHandler;
 import io.camunda.zeebe.client.api.worker.JobWorkerBuilderStep1;
 import io.camunda.zeebe.client.impl.oauth.OAuthCredentialsProvider;
 import io.camunda.zeebe.client.impl.oauth.OAuthCredentialsProviderBuilder;
+import org.camunda.c7c8worker.baseworker.BaseWorker;
 import org.camunda.c7c8worker.bpmnengine.BpmnEngine;
 import org.camunda.c7c8worker.bpmnengine.EngineException;
-import org.camunda.c7c8worker.bpmnengine.FixedBackoffSupplier;
+
 import org.camunda.c7c8worker.bpmnengine.JobInformation;
 import org.camunda.c7c8worker.configuration.BpmnEngineList;
 import org.slf4j.Logger;
@@ -54,17 +55,9 @@ public class BpmnEngineCamunda8 implements BpmnEngine {
    *
    * @param zeebeSelfGatewayAddress    Self Manage : zeebe address
    * @param zeebeSelfSecurityPlainText Self Manage: Plain text
-   * @param operateUrl                 URL to access Operate
-   * @param operateUserName            Operate user name
-   * @param operateUserPassword        Operate password
-   * @param tasklistUrl                Url to access TaskList
    */
   public static BpmnEngineCamunda8 getFromCamunda8(String zeebeSelfGatewayAddress,
-                                                   String zeebeSelfSecurityPlainText,
-                                                   String operateUrl,
-                                                   String operateUserName,
-                                                   String operateUserPassword,
-                                                   String tasklistUrl) {
+                                                   String zeebeSelfSecurityPlainText) {
     BpmnEngineCamunda8 bpmnEngineCamunda8 = new BpmnEngineCamunda8();
     bpmnEngineCamunda8.serverDefinition = new BpmnEngineList.BpmnServerDefinition();
     bpmnEngineCamunda8.serverDefinition.serverType = BpmnEngineList.CamundaEngine.CAMUNDA_8;
@@ -83,10 +76,6 @@ public class BpmnEngineCamunda8 implements BpmnEngine {
    * @param zeebeSaasCloudClusterId Saas Cloud ClusterID
    * @param zeebeSaasCloudClientId  Saas Cloud ClientID
    * @param zeebeSaasClientSecret   Saas Cloud Client Secret
-   * @param operateUrl              URL to access Operate
-   * @param operateUserName         Operate user name
-   * @param operateUserPassword     Operate password
-   * @param tasklistUrl             Url to access TaskList
    */
   public static BpmnEngineCamunda8 getFromCamunda8SaaS(
 
@@ -96,11 +85,7 @@ public class BpmnEngineCamunda8 implements BpmnEngine {
       String zeebeSaasCloudClientId,
       String zeebeSaasOAuthUrl,
       String zeebeSaasAudience,
-      String zeebeSaasClientSecret,
-      String operateUrl,
-      String operateUserName,
-      String operateUserPassword,
-      String tasklistUrl) {
+      String zeebeSaasClientSecret) {
     BpmnEngineCamunda8 bpmnEngineCamunda8 = new BpmnEngineCamunda8();
     bpmnEngineCamunda8.serverDefinition = new BpmnEngineList.BpmnServerDefinition();
     bpmnEngineCamunda8.serverDefinition.serverType = BpmnEngineList.CamundaEngine.CAMUNDA_8;
@@ -261,16 +246,13 @@ public class BpmnEngineCamunda8 implements BpmnEngine {
   /* ******************************************************************** */
   @Override
   public RegisteredTask registerServiceTask(String workerId,
-                                            String topic,
-                                            Duration lockTime,
-                                            Object jobHandler,
-                                            FixedBackoffSupplier backoffSupplier) {
-    if (!(jobHandler instanceof JobHandler)) {
+                                            BaseWorker baseWorker) {
+    if (!(baseWorker instanceof JobHandler)) {
       logger.error("handler is not a JobHandler implementation, can't register the worker [{}], topic [{}]", workerId,
-          topic);
+          baseWorker.getType());
       return null;
     }
-    if (topic == null) {
+    if (baseWorker.getType() == null) {
       logger.error("topic must not be null, can't register the worker [{}]", workerId);
       return null;
 
@@ -278,14 +260,19 @@ public class BpmnEngineCamunda8 implements BpmnEngine {
     RegisteredTask registeredTask = new RegisteredTask();
 
     JobWorkerBuilderStep1.JobWorkerBuilderStep3 step3 = zeebeClient.newWorker()
-        .jobType(topic)
-        .handler((JobHandler) jobHandler)
-        .timeout(lockTime)
+        .jobType(baseWorker.getType())
+        .handler(baseWorker)
+        .maxJobsActive(baseWorker.getMaxJobActives())
+        .timeout(baseWorker.getLockTime())
+        .streamEnabled(baseWorker.isStreamEnabled())
         .name(workerId);
 
-    if (backoffSupplier != null) {
-      step3.backoffSupplier(backoffSupplier);
+    if (baseWorker.getBackoffSupplier() != null) {
+      step3.backoffSupplier(baseWorker.getBackoffSupplier());
     }
+    if (! baseWorker.getListFetchVariables().isEmpty())
+      step3 = step3.fetchVariables(baseWorker.getListFetchVariables());
+
     registeredTask.jobWorker = step3.open();
     return registeredTask;
   }
@@ -298,6 +285,12 @@ public class BpmnEngineCamunda8 implements BpmnEngine {
   /*                                                                      */
   /* ******************************************************************** */
 
+  /**
+   * Complete a jobs
+   * @param jobInformation JobInformation
+   * @param variables      variable to updates
+   * @throws EngineException in any error
+   */
   @Override
   public void complete(JobInformation jobInformation, Map<String, Object> variables) throws EngineException {
     try {
@@ -311,16 +304,26 @@ public class BpmnEngineCamunda8 implements BpmnEngine {
    * Fail a service task
    *
    * @param jobInformation JobInformation
-   * @param nbRetry        number of retry
+   * @param nbRetries        number of retry
+   * @param errorMessage error Message
+   * @param errorDetails error details
+   * @param retryTimeout timeout before retry, in ms
    * @param variables      variable to updates
    * @throws EngineException in case of error
    */
   @Override
-  public void fail(JobInformation jobInformation, int nbRetry, Map<String, Object> variables) throws EngineException {
+  public void fail(JobInformation jobInformation,
+                   int nbRetries,
+                   String errorMessage,
+                   String errorDetails,
+                   Duration retryTimeout,
+                   Map<String, Object> variables) throws EngineException {
     try {
       zeebeClient.newFailCommand(jobInformation.activatedJob.getKey())
-          .retries(nbRetry)
+          .retries(nbRetries)
+          .errorMessage(errorMessage)
           .variables(variables)
+          .requestTimeout(retryTimeout)
           .send()
           .join();
     } catch (Exception e) {
@@ -329,7 +332,7 @@ public class BpmnEngineCamunda8 implements BpmnEngine {
   }
 
   /**
-   * Fail a service task
+   * throwBpmnError a service task
    *
    * @param jobInformation JobInformation
    * @param errorCode      error BPMN code

@@ -73,14 +73,62 @@ You can adopt new features or migrate to newer versions of Camunda at your own p
 without disrupting your existing business logic.
 
 # How to implement it?
-To create your own worker in the io.camunda.workers package, you can follow a similar structure 
-as the ping worker. Here's an example of how you can create a simple worker:
 
-In this example:
+## Principle
 
-Replace "myWorkerTopic" with the topic name that your worker subscribes to.
-Inside the handle() method, you can access process variables using externalTask.getVariable("variableName").
-Implement your business logic within the handle() method.
-Use externalTaskService.complete(externalTask) to complete the task successfully.
-Use externalTaskService.fail(externalTask) or externalTaskService.bpmnError(externalTask, errorCode) to handle failures or BPMN errors respectively.
-Ensure that you have the necessary dependencies set up for your project to compile and run successfully. You may need to include Camunda BPM client libraries or any other dependencies required by your business logic.
+To create your own worker in the `org.camunda.c5c8worker.worker` package, you can follow a similar structure 
+as the `DelayWorker` worker. Here's an example of how you can create a simple worker.
+
+Follow this procedure
+* the worker must be a @Component
+
+This is the way the SpringBoot application detect it and open a worker
+
+* Implement the `getType()` method
+
+This method return the type of the worker
+
+* Implement the `executeWorker` method
+
+The worker, in Camunda 7 or Camunda 8, will call this method.
+All information are avaible in the `JobInformation` object. You can access a method via `getVariable()` 
+
+````java
+    String delayPolicy = (String) jobInformation.getVariable(DELAY_POLICY);
+````
+
+At the end, worker must call `complete()`, `fail()` or `throwBpmnError()`method. 
+These methods are available in the `BaseWorker`class.
+
+## Additional
+
+Check the `BaseWorker` class. Multiple method are available to parametrize the worker.
+Some methods are used only on Camunda 8, for example `isStreamEnabled()`. This option is valid only 
+for a Camunda 8 server upper than 8.3.
+
+# Connect to Camunda server
+
+Your application need to connect to a Camunda server, 7 or 8.
+Actually, this application can connect to any server, at the same time: it's possible for example
+to give a Camunda 7 server and a Camunda 8 server. The application will open a worker to the Camunda 7 server, and a second worker on the Camunda 8 worker.
+
+The list of server can be give on multiple way
+
+## List of servers in application.yaml
+
+## Connection string of servers in application.yaml or environment variable
+
+
+# Generate a JAR file for a Camunda 8 run time
+It's possible to generate a JAR file, to be deploy in a Camunda 8 run time, like the Cherry Runtime
+(visit https://github.com/camunda-community-hub/zeebe-cherry-runtime)
+
+To generate the JAR file, execute
+
+````shell
+mvn install
+````
+A jar file is generated under the target folder.
+
+Copy this JAR file and upload it on the Cherry runtime. Workers will be detected.
+

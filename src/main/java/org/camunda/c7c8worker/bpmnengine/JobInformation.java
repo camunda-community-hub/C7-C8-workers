@@ -32,7 +32,7 @@ public class JobInformation {
   public JobInformation(ExternalTask externalTask, ExternalTaskService externalTaskService, BpmnEngine bpmnEngine) {
     this.externalTask = externalTask;
     this.externalTaskService = externalTaskService;
-    this.retries = externalTask.getRetries();
+    this.retries = externalTask.getRetries()==null? 0: externalTask.getRetries();
     this.bpmnEngine = bpmnEngine;
   }
 
@@ -86,7 +86,7 @@ public class JobInformation {
       return externalTask.getId();
     if (activatedJob != null)
       return String.valueOf(activatedJob.getKey());
-    logger.error("GetJobId [{}] no information about the job");
+    logger.error("GetJobId no information about the job" );
     return null;
   }
 

@@ -2,6 +2,7 @@ package org.camunda.c7c8worker.bpmnengine;
 
 import io.camunda.zeebe.client.api.worker.JobWorker;
 import org.camunda.bpm.client.topic.TopicSubscription;
+import org.camunda.c7c8worker.baseworker.BaseWorker;
 import org.camunda.c7c8worker.configuration.BpmnEngineList;
 
 import java.time.Duration;
@@ -36,17 +37,11 @@ public interface BpmnEngine {
 
   /**
    * @param workerId        workerId
-   * @param topic           topic to register
-   * @param lockTime        lock time for the job
-   * @param jobHandler      C7: must implement ExternalTaskHandler. C8: must implement JobHandler
-   * @param backoffSupplier backOffStrategy
-   * @return list of Service Task
+   * @param baseWorker worker to Register
+   * @return the registered task of Service Task
    */
   RegisteredTask registerServiceTask(String workerId,
-                                     String topic,
-                                     Duration lockTime,
-                                     Object jobHandler,
-                                     FixedBackoffSupplier backoffSupplier);
+                                     BaseWorker baseWorker);
 
   /**
    * Extend the lock duration
@@ -67,11 +62,14 @@ public interface BpmnEngine {
    * Fail a service task
    *
    * @param jobInformation JobInformation
-   * @param nbRetry        number of retry
+   * @param nbRetries        number of retry
+   * @param errorMessage Error Message
+   * @param errorDetails Error details
+   * @param retryTimeout time before retry
    * @param variables      variable to updates
    * @throws EngineException in case of error
    */
-  void fail(JobInformation jobInformation, int nbRetry, Map<String, Object> variables) throws EngineException;
+  void fail(JobInformation jobInformation, int nbRetries, String errorMessage, String errorDetails, Duration retryTimeout, Map<String, Object> variables) throws EngineException;
 
   /**
    * Fail a service task

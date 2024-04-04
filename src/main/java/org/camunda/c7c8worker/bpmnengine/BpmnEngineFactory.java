@@ -10,37 +10,57 @@ package org.camunda.c7c8worker.bpmnengine;
 import org.camunda.c7c8worker.bpmnengine.camunda7.BpmnEngineCamunda7;
 import org.camunda.c7c8worker.bpmnengine.camunda8.BpmnEngineCamunda8;
 import org.camunda.c7c8worker.configuration.BpmnEngineList;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
-import java.util.EnumMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
+
+@Service
 /**
  * This can't be a Component, to be used in AutomatorAPI
  */
 public class BpmnEngineFactory {
 
-  private static final BpmnEngineFactory bpmnEngineFactory = new BpmnEngineFactory();
-  Map<BpmnEngineList.CamundaEngine, BpmnEngine> cacheEngine = new EnumMap<>(BpmnEngineList.CamundaEngine.class);
+  static Logger logger = LoggerFactory.getLogger(BpmnEngineFactory.class);
 
-  public static BpmnEngineFactory getInstance() {
-    return bpmnEngineFactory;
+  List<BpmnEngine> listEngines = new ArrayList<>();
+
+@Autowired
+  BpmnEngineList bpmEngineList;
+
+  /**
+   * This method must be call to initialize the factory
+   * Note: this is not a PostConstruct because we give this operation to the application, to get control on the order of the execution
+   *
+   */
+  public void initialize() {
+    bpmEngineList.initialize();
+    for (BpmnEngineList.BpmnServerDefinition serverDefinition : bpmEngineList.getListServers())
+    {
+      try {
+        BpmnEngine engine = getEngineFromConfiguration(serverDefinition, false);
+        engine.init();
+        engine.connection();
+        listEngines.add( engine);
+      } catch (EngineException e) {
+        logger.error("During intializing server [{}] : {}", serverDefinition.toString(), e.getMessage());
+      }
+    }
   }
 
-  public BpmnEngine getEngineFromConfiguration(BpmnEngineList.BpmnServerDefinition serverDefinition,
+  public List<BpmnEngine> getListEngines() {
+    return listEngines;
+  }
+
+  private BpmnEngine getEngineFromConfiguration(BpmnEngineList.BpmnServerDefinition serverDefinition,
                                                boolean logDebug)
       throws EngineException {
-    BpmnEngine engine = cacheEngine.get(serverDefinition.serverType);
-    if (engine != null)
-      return engine;
-
-    // instantiate and initialize the engine now
-    synchronized (this) {
-      engine = cacheEngine.get(serverDefinition.serverType);
-      if (engine != null)
-        return engine;
-
-      engine = switch (serverDefinition.serverType) {
+    return switch (serverDefinition.serverType) {
         case CAMUNDA_7 -> new BpmnEngineCamunda7(serverDefinition, logDebug);
 
         case CAMUNDA_8 -> BpmnEngineCamunda8.getFromServerDefinition(serverDefinition, logDebug);
@@ -49,21 +69,17 @@ public class BpmnEngineFactory {
 
 
       };
-
-      engine.init();
-      engine.connection();
-      cacheEngine.put(serverDefinition.serverType, engine);
-    }
-    return engine;
   }
 
   public BpmnEngine getCamunda7() {
-    return cacheEngine.get(BpmnEngineList.CamundaEngine.CAMUNDA_7);
+    Optional<BpmnEngine> camunda8= listEngines.stream().filter(t->
+        t.getTypeCamundaEngine().equals(BpmnEngineList.CamundaEngine.CAMUNDA_7)).findFirst();
+    return  camunda8.isPresent()? camunda8.get() : null;
   }
 
   public BpmnEngine getCamunda8() {
-    Optional<BpmnEngine> camunda8= cacheEngine.values().stream().filter(t->
-    {return ! t.getTypeCamundaEngine().equals(BpmnEngineList.CamundaEngine.CAMUNDA_7);}).findFirst();
+    Optional<BpmnEngine> camunda8= listEngines.stream().filter(t->
+    ! t.getTypeCamundaEngine().equals(BpmnEngineList.CamundaEngine.CAMUNDA_7)).findFirst();
     return  camunda8.isPresent()? camunda8.get() : null;
   }
 

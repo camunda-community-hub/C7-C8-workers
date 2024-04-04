@@ -30,3 +30,6 @@ c7c8worker:
     #   audience: "zeebe.camunda.io"
     #   workerExecutionThreads: 10
     #   workerMaxJobsActive: 10
+
+  # Give the list in a string, separate by ;. Easy to configure in a Helm Chart
+  serversConnection:

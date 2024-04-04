@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.text.SimpleDateFormat;
+import java.time.Duration;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -31,8 +32,17 @@ public class DelayWorker extends BaseWorker {
 
   @Override
   public List<String> getListFetchVariables() {
-    return List.of(DELAY_POLICY,DELAY_SLEEP_IN_MS,ERROR_CODE,ERROR_MESSAGE,INITIAL_RETRY);
+    return List.of(DELAY_POLICY, DELAY_SLEEP_IN_MS, ERROR_CODE, ERROR_MESSAGE, INITIAL_RETRY);
   }
+
+  /**
+   * Get 30 jobs actives for this worker
+   */
+  @Override
+  public int getMaxJobActives() {
+    return 30;
+  }
+
 
   @Override
   public void executeWorker(JobInformation jobInformation) throws Exception {
@@ -43,25 +53,29 @@ public class DelayWorker extends BaseWorker {
 
     String delayPolicy = (String) jobInformation.getVariable(DELAY_POLICY);
 
+    // Task ask a Complete
     if ("COMPLETE".equalsIgnoreCase(delayPolicy)) {
       long delaySleepInMs = getValueLong(jobInformation.getVariable(DELAY_SLEEP_IN_MS), 0L);
       logger.error("Delay-worker job[{}] : COMPLETE Sleep[{}]", jobInformation.getJobId(), delaySleepInMs);
       Thread.sleep(delaySleepInMs);
 
       complete(jobInformation, variables);
+      // Task ask a BPMNERROR
     } else if ("BPMNERROR".equalsIgnoreCase(delayPolicy)) {
       String errorCode = (String) jobInformation.getVariable(ERROR_CODE);
       String errorMessage = (String) jobInformation.getVariable(ERROR_MESSAGE);
       logger.error("Delay-worker job[{}] : BPMNERROR errorCode [{}]errorMessage[{}]", jobInformation.getJobId(),
           errorCode, errorMessage);
       throwBpmnError(jobInformation, errorCode, errorMessage, variables);
+
+      // Task ask a FAIL
     } else if ("FAIL".equalsIgnoreCase(delayPolicy)) {
       long retry = getValueLong(jobInformation.getVariable(INITIAL_RETRY), 1L);
       if (jobInformation.getRetries() != 0)
-        retry = jobInformation.getRetries() - 1;
+        retry = jobInformation.getRetries() - 1L;
 
       logger.error("Delay-worker job[{}] : FAIL retry[{}]", jobInformation.getJobId(), retry);
-      fail(jobInformation, (int) retry, variables);
+      fail(jobInformation, (int) retry, "Error", "this is an error", Duration.ofSeconds(5), variables);
     } else {
       logger.error("No policy was set up, so just complete");
       complete(jobInformation, variables);
@@ -70,7 +84,8 @@ public class DelayWorker extends BaseWorker {
 
   /**
    * Return a long value
-   * @param value value to transform
+   *
+   * @param value        value to transform
    * @param defaultValue default value if the value is null
    * @return a Long
    */
@@ -82,7 +97,7 @@ public class DelayWorker extends BaseWorker {
       return valueLong;
     try {
       return Long.valueOf(value.toString());
-    }catch(Exception e) {
+    } catch (Exception e) {
       logger.error("Can't transform[{}] to Long return defaultValue[{}]", value, defaultValue);
       return defaultValue;
     }

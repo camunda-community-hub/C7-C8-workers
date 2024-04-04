@@ -93,7 +93,7 @@
         <zeebe:taskDefinition type="delay-worker" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;BPMNERROR&#34;" target="delayPolicy" />
-          <zeebe:input source="=200" target="errorCode" />
+          <zeebe:input source="=&#34;200&#34;" target="errorCode" />
           <zeebe:input source="=&#34;This is a failure&#34;" target="errorMessage" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
