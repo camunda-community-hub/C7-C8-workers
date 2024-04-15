@@ -17,7 +17,6 @@ However, in Camunda 8, the only approach is to use external tasks to implement s
 
 ## Main difference between the Java Delegates and External task are:
 
-
 **Java Delegates**: These are tightly coupled with the process engine and execute within the same JVM as the engine.
 They are synchronous and executed within the same transaction as the process.
 
@@ -30,10 +29,35 @@ advantages such as improved fault tolerance and easier scaling.
 While the principle of using External Tasks remains the same, there may be differences in the APIs
 between Camunda 7 and Camunda 8.
 
+![Camunda 7](doc/Camunda7-Architecture.png)
+
+In Camunda 7, the external Task API is used.
+
+`````xml
+       <dependency>
+            <groupId>org.camunda.bpm</groupId>
+            <artifactId>camunda-external-task-client</artifactId>
+        </dependency>
+`````
+
+![Camunda 8](doc/Camunda8-Architecture.png)
+
+In Camunda 8, the ZeebeClient API is used
+
+`````xml
+       <dependency>
+            <groupId>io.camunda</groupId>
+            <artifactId>zeebe-client-java</artifactId>
+        </dependency>
+`````
 This means that code written for Camunda 7's External Tasks may need to be updated
 to work with Camunda 8.
 
 # This project
+
+The project propose a abstract class which implement both API.
+![BaseWorker architecture](doc/BaseWorker-Architecture.png)
+
 
 Using an interface to abstract away the specifics of the Camunda version and decouple
 your business logic from the workflow engine has several advantages:
@@ -106,6 +130,17 @@ Check the `BaseWorker` class. Multiple methods are available to parametrize the 
 Some methods are used only on Camunda 8, such as `isStreamEnabled()`. This option is valid only
 for a Camunda 8 server upper than 8.3.
 
+## Calls
+Calls are the following:
+
+![Camunda 7 ](doc/Call-Camunda7.png)
+
+When a call arrives, BaseWorker gets it. It will create a JobInformation to keep all information and call the `executeWorker()` method.
+The worker completes the job by calling the method `complete()`. Then, according to the current BPMN engine, the API is called.
+
+![Camunda 8](doc/Camunda8-Architecture.png)
+When a call arrives, BaseWorker gets it and creates a JobInformation as a Camunda 7 method. It then calls the `executeWorker()` method.
+ 
 # Connect to the Camunda server
 
 Your application needs to connect to a Camunda server, 7 or 8.
