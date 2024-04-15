@@ -67,11 +67,13 @@ public abstract class BaseWorker implements ExternalTaskHandler, JobHandler {
    */
   @Override
   public void handle(JobClient jobClient, ActivatedJob activatedJob) throws Exception {
+    long timeBegin = System.currentTimeMillis();
     BpmnEngine engineCamunda8 = bpmnEngineFactory.getCamunda8();
-    JobInformation jobInformation = new JobInformation(jobClient, activatedJob,engineCamunda8 );
+    JobInformation jobInformation = new JobInformation(jobClient, activatedJob, engineCamunda8);
     executeWorker(jobInformation);
+    long endTime = System.currentTimeMillis();
+    logger.info("Execute in {} ms", endTime - timeBegin);
   }
-
 
 
 
